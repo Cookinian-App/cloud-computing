@@ -4,9 +4,84 @@ const jwt = require('jsonwebtoken');
 const admin = require('firebase-admin');
 const axios = require('axios');
 
+const getSavedRecipes = async (uid, page, limit) => {
+    const db = admin.firestore();
+    const userRef = db.collection('users').doc(uid);
+
+    // Query recipes that are saved by the user
+    let query = db.collection('saves2')
+                  .where('uid', '==', uid)
+                  .orderBy('title')
+                  .limit(limit)
+                  .select('key', 'title', 'thumb', 'times', 'serving', 'difficulty', 'calories');
+
+    if (page > 1) {
+        const skip = (page - 1) * limit;
+        let lastVisible = null;
+
+        for (let i = 1; i < page; i++) {
+            const snapshot = await query.get();
+            lastVisible = snapshot.docs[snapshot.docs.length - 1];
+
+            query = query.startAfter(lastVisible);
+        }
+    }
+
+    const querySnapshot = await query.get();
+    return querySnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+};
 
 async function routeHandler(server) {
     const db = admin.firestore();
+
+    server.route({
+        method: 'POST',
+        path: '/api/save/post',
+        handler: async (request, h) => {
+            const { uid, key, title, thumb, times, serving, difficulty, calories } = request.payload;
+            const db = admin.firestore();
+
+            const valUser = await db.collection('users').doc(uid).get();
+            if (!valUser.exists) {
+                return h.response({ error: true, message: "User doesn't exist" }).code(401);
+            }
+            const valSave = await db.collection('saves2').where('uid', '==', uid).where('key', '==', rid).get();
+            if (valSave.exists) {
+                return h.response({ error: true, message: "Recipe already saved" }).code(401);
+            }
+
+
+            const saveRecipe = db.collection('saves2').doc();
+            await saveRecipe.set({
+                uid,
+                key,
+                title,
+                thumb,
+                times,
+                serving,
+                difficulty,
+                calories
+            });
+            return h.response({ error:false, message: "Recipe saved"}).code(201);
+        }
+    });
+
+    server.route({
+        method: 'GET',
+        path: '/api/save/get/{uid}/{page}',
+        handler: async (request, h) => {
+            const uid = request.params.uid;
+            const page = parseInt(request.params.page, 10);
+            const limit = 20;
+            try {
+                const data = await getSavedRecipes(uid, page, limit);
+                return h.response(data).code(200);
+            } catch (error) {
+                console.error(error);
+                return h.response({ error: 'Failed to fetch recipes' }).code(500);
+            }
+        }
+    });
 
     server.route({
         method: 'POST',
