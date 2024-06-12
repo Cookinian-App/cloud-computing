@@ -2,55 +2,28 @@ const Joi = require('joi');
 const argon2 = require('argon2');
 const jwt = require('jsonwebtoken');
 const admin = require('firebase-admin');
-const axios = require('axios');
 
-const getSavedRecipes = async (uid, page, limit) => {
-    const db = admin.firestore();
-    const userRef = db.collection('users').doc(uid);
-
-    // Query recipes that are saved by the user
-    let query = await db.collection('saves2')
-                  .where('uid', '==', uid)
-                  .orderBy('title')
-                  .limit(limit)
-                  .select('key', 'title', 'thumb', 'times', 'serving', 'difficulty', 'calories')
-                  .get;
-
-    if (page > 1) {
-        const skip = (page - 1) * limit;
-        let lastVisible = null;
-
-        for (let i = 1; i < page; i++) {
-            const snapshot = await query.get();
-            lastVisible = snapshot.docs[snapshot.docs.length - 1];
-
-            query = query.startAfter(lastVisible);
-        }
-    }
-
-    const querySnapshot = await query.get();
-    return querySnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
-};
 
 async function routeHandler(server) {
     const db = admin.firestore();
+
 
     server.route({
         method: 'POST',
         path: '/api/save/post',
         handler: async (request, h) => {
-            const { uid, key, title, thumb, times, serving, difficulty, calories } = request.payload;
+            const { uid, key, title, thumb, times, difficulty } = request.payload;
             const db = admin.firestore();
 
             const valUser = await db.collection('users').doc(uid).get();
             if (!valUser.exists) {
                 return h.response({ error: true, message: "User doesn't exist" }).code(401);
             }
-            const valSave = await db.collection('saves2').where('uid', '==', uid).where('key', '==', rid).get();
-            if (valSave.exists) {
+
+            const valSave = await db.collection('saves2').where('uid', '==', uid).where('key', '==', key).get();
+            if (!valSave.empty) {
                 return h.response({ error: true, message: "Recipe already saved" }).code(401);
             }
-
 
             const saveRecipe = db.collection('saves2').doc();
             await saveRecipe.set({
@@ -61,35 +34,41 @@ async function routeHandler(server) {
                 times,
                 difficulty
             });
-            return h.response({ error:false, message: "Recipe saved"}).code(201);
+            return h.response({ error: false, message: "Recipe saved" }).code(201);
         }
     });
 
+    
     server.route({
         method: 'GET',
         path: '/api/save/get/{uid}',
         handler: async (request, h) => {
-            const uid = request.params.uid;
-            const page = parseInt(request.params.page, 10);
-            try {
-                const query = db.collection('saves2')
-                  .where('uid', '==', uid)
-                  .orderBy('title')
-                  .select('key', 'title', 'thumb', 'times', 'difficulty')
-                  .get();
-                if (!query.exists) {
-                    return h.response({ message: 'No saved data found for user' }).code(400);
-                }
-                data = query.docs.map(doc => ({ id: doc.id, ...doc.data() }));
-                
-                return h.response(data).code(200);
-            } catch (error) {
-                console.error(error);
-                return h.response({ error: 'Failed to fetch recipes' }).code(500);
+            const { uid } = request.params;
+            const db = admin.firestore();
+    
+            
+            const valUser = await db.collection('users').doc(uid).get();
+            if (!valUser.exists) {
+                return h.response({ error: true, message: "User doesn't exist" }).code(401);
             }
+    
+            
+            const savedRecipesSnapshot = await db.collection('saves2').where('uid', '==', uid).get();
+            if (savedRecipesSnapshot.empty) {
+                return h.response({ error: true, message: "No recipes found" }).code(404);
+            }
+    
+            const recipes = [];
+            savedRecipesSnapshot.forEach(doc => {
+                recipes.push(doc.data());
+            });
+    
+            return h.response({ error: false, recipes }).code(200);
         }
     });
+    
 
+    
     server.route({
         method: 'POST',
         path: '/register',
@@ -97,7 +76,6 @@ async function routeHandler(server) {
             const { name, email, password } = request.payload;
             const db = admin.firestore();
 
-            // Validate request payload using Joi schema
             const schema = Joi.object({
                 name: Joi.string().min(3).max(20).required(),
                 email: Joi.string().email().required(),
@@ -127,8 +105,7 @@ async function routeHandler(server) {
         }
     });
 
-
-
+    
     server.route({
         method: 'POST',
         path: '/login',
@@ -148,8 +125,7 @@ async function routeHandler(server) {
                 return h.response({ error: true, message: 'Invalid Password' }).code(401);
             }
 
-            // Generate URL avatar karakter menggunakan layanan UI Avatars
-            const nameForAvatar = encodeURIComponent(user.name); // Encode nama untuk URL yang valid
+            const nameForAvatar = encodeURIComponent(user.name);
             const avatarUrl = `https://ui-avatars.com/api/?name=${nameForAvatar}`;
 
             const token = jwt.sign({ userId: userDoc.id, name: user.name, avatarUrl }, 'your-secret-key', { expiresIn: '1h' });
@@ -167,7 +143,7 @@ async function routeHandler(server) {
         }
     });
 
-
+    
     server.route({
         method: 'POST',
         path: '/change-password',
@@ -210,10 +186,8 @@ async function routeHandler(server) {
             return h.response({ error: false, message: 'Password updated successfully' }).code(200);
         }
     });
-    
-    
 
-
+    
     server.route({
         method: 'POST',
         path: '/change-name',
@@ -221,7 +195,6 @@ async function routeHandler(server) {
             const { email, newName } = request.payload;
             const db = admin.firestore();
     
-            // Validate request payload using Joi schema
             const schema = Joi.object({
                 email: Joi.string().email().required(),
                 newName: Joi.string().required()
@@ -253,7 +226,6 @@ async function routeHandler(server) {
             }
         }
     });
-    
 }
 
 module.exports = routeHandler;

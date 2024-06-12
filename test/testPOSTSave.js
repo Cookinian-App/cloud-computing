@@ -1,28 +1,18 @@
 const axios = require('axios');
 
-const url = 'http://localhost:3000/api/save/post';
-
-
-const data = {
-    uid: 'x', 
-    key: 'x', 
-    title: 'x',
-    thumb: 'x',
-    times: 'x',
-    serving: 'x',
-    difficulty: 'x',
-    calories: 'x'
+const recipeData = {
+    uid: 'HkInjtxeEh3KtisaeAlj',
+    key: 'resep-sup-kimlo-daging-sapi',
+    title: 'Resep Sup Kimlo a la Hotel, Gurih dan Isinya Berlimpah',
+    thumb: 'https://www.masakapahariini.com/wp-content/uploads/2019/01/sup-kimlo-daging-sapi-1-500x300.jpg',
+    times: '1jam',
+    difficulty: 'Mudah'
 };
 
-// Mengirim permintaan POST menggunakan Axios
-axios.post(url, data)
+axios.post('http://localhost:3000/api/save', recipeData)
     .then(response => {
-        console.log('Response:', response.data);
+        console.log('Recipe saved successfully:', response.data);
     })
     .catch(error => {
-        if (error.response) {
-            console.error('Error:', error.response.data);
-        } else {
-            console.error('Error:', error.message);
-        }
+        console.error('Request failed:', error.message);
     });

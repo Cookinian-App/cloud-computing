@@ -1,19 +1,15 @@
 const axios = require('axios');
 
+const uid = 'HkInjtxeEh3KtisaeAlj';
 
-const uid = 'user123'; 
-const page = 1; 
-const url = `http://localhost:3000/api/save/get/${uid}/${page}`; 
-
-
-axios.get(url)
+axios.get(`http://localhost:3000/api/save/get/${uid}`)
     .then(response => {
-        console.log('Response:', response.data);
+        if (response.data.error) {
+            console.error('Error:', response.data.message);
+        } else {
+            console.log('Saved recipes:', response.data.recipes);
+        }
     })
     .catch(error => {
-        if (error.response) {
-            console.error('Error:', error.response.data);
-        } else {
-            console.error('Error:', error.message);
-        }
+        console.error('Request failed:', error.message);
     });
