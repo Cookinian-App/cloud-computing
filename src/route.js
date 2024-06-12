@@ -9,11 +9,12 @@ const getSavedRecipes = async (uid, page, limit) => {
     const userRef = db.collection('users').doc(uid);
 
     // Query recipes that are saved by the user
-    let query = db.collection('saves2')
+    let query = await db.collection('saves2')
                   .where('uid', '==', uid)
                   .orderBy('title')
                   .limit(limit)
-                  .select('key', 'title', 'thumb', 'times', 'serving', 'difficulty', 'calories');
+                  .select('key', 'title', 'thumb', 'times', 'serving', 'difficulty', 'calories')
+                  .get;
 
     if (page > 1) {
         const skip = (page - 1) * limit;
@@ -68,13 +69,20 @@ async function routeHandler(server) {
 
     server.route({
         method: 'GET',
-        path: '/api/save/get/{uid}/{page}',
+        path: '/api/save/get/{uid}',
         handler: async (request, h) => {
             const uid = request.params.uid;
             const page = parseInt(request.params.page, 10);
             const limit = 20;
             try {
-                const data = await getSavedRecipes(uid, page, limit);
+                let query = db.collection('saves2')
+                  .where('uid', '==', uid)
+                  .orderBy('title')
+                  .limit(limit)
+                  .select('key', 'title', 'thumb', 'times', 'serving', 'difficulty', 'calories')
+                  .get();
+                data = query.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+                
                 return h.response(data).code(200);
             } catch (error) {
                 console.error(error);
