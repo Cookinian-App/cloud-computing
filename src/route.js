@@ -78,8 +78,7 @@ async function routeHandler(server) {
                 const query = db.collection('saves2')
                   .where('uid', '==', uid)
                   .orderBy('title')
-                  .limit(limit)
-                  .select('key', 'title', 'thumb', 'times', 'serving', 'difficulty', 'calories')
+                  .select('key', 'title', 'thumb', 'times', 'difficulty')
                   .get();
                 if (!query.exists) {
                     return h.response({ message: 'No saved data found for user' }).code(400);
