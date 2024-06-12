@@ -59,9 +59,7 @@ async function routeHandler(server) {
                 title,
                 thumb,
                 times,
-                serving,
-                difficulty,
-                calories
+                difficulty
             });
             return h.response({ error:false, message: "Recipe saved"}).code(201);
         }
@@ -73,7 +71,6 @@ async function routeHandler(server) {
         handler: async (request, h) => {
             const uid = request.params.uid;
             const page = parseInt(request.params.page, 10);
-            const limit = 20;
             try {
                 const query = db.collection('saves2')
                   .where('uid', '==', uid)
