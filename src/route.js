@@ -75,12 +75,15 @@ async function routeHandler(server) {
             const page = parseInt(request.params.page, 10);
             const limit = 20;
             try {
-                let query = db.collection('saves2')
+                const query = db.collection('saves2')
                   .where('uid', '==', uid)
                   .orderBy('title')
                   .limit(limit)
                   .select('key', 'title', 'thumb', 'times', 'serving', 'difficulty', 'calories')
                   .get();
+                if (!query.exists) {
+                    return h.response({ message: 'No saved data found for user' }).code(400);
+                }
                 data = query.docs.map(doc => ({ id: doc.id, ...doc.data() }));
                 
                 return h.response(data).code(200);
