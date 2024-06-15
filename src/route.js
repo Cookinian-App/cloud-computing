@@ -55,7 +55,7 @@ async function routeHandler(server) {
             
             const savedRecipesSnapshot = await db.collection('saves2').where('uid', '==', uid).get();
             if (savedRecipesSnapshot.empty) {
-                return h.response({ error: true, message: "No recipes found" }).code(404);
+                return h.response({ error: false, recipes: [] }).code(200);
             }
     
             const recipes = [];
@@ -66,6 +66,59 @@ async function routeHandler(server) {
             return h.response({ error: false, recipes }).code(200);
         }
     });
+    server.route({
+        method: 'DELETE',
+        path: '/api/save/unsave/{uid},{key}',
+        handler: async (request, h) => {
+            const { uid, key } = request.params; 
+            const db = admin.firestore();
+    
+            const valUser = await db.collection('users').doc(uid).get();
+            if (!valUser.exists) {
+                return h.response({ error: true, message: "User doesn't exist" }).code(401);
+            }
+    
+            const valSave = await db.collection('saves2').where('uid', '==', uid).where('key', '==', key).get();
+            if (valSave.empty) {
+                return h.response({ error: false, recipes: [] }).code(200);
+            }
+    
+            const batch = db.batch();
+            valSave.forEach(doc => {
+                batch.delete(doc.ref);
+            });
+            await batch.commit();
+    
+            return h.response({ error: false, message: "Recipe unsaved" }).code(200);
+        }
+    });
+    server.route({
+        method: 'DELETE',
+        path: '/api/save/delete-all/{uid}',
+        handler: async (request, h) => {
+            const { uid } = request.params; 
+            const db = admin.firestore();
+    
+            const valUser = await db.collection('users').doc(uid).get();
+            if (!valUser.exists) {
+                return h.response({ error: true, message: "User doesn't exist" }).code(401);
+            }
+    
+            const valSave = await db.collection('saves2').where('uid', '==', uid).get();
+            if (valSave.empty) {
+                return h.response({ error: false, recipes: [] }).code(200);
+            }
+    
+            const batch = db.batch();
+            valSave.forEach(doc => {
+                batch.delete(doc.ref);
+            });
+            await batch.commit();
+    
+            return h.response({ error: false, message: "All saved recipes unsaved" }).code(200);
+        }
+    });
+
     
 
     
