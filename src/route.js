@@ -14,23 +14,26 @@ async function routeHandler(server) {
             if (!query) {
                 return h.response({ error: true, message: 'Query parameter s is required' }).code(400);
             }
-
+    
             const ingredients = query.split(',').map(ing => ing.trim().toLowerCase());
+            console.log('Search ingredients:', ingredients);
+    
             try {
-                const recipesSnapshot = await db.collection('recipe').get();
+                const recipesSnapshot = await db.collection('recipes').get();
                 let recipes = [];
-
+    
                 recipesSnapshot.forEach(doc => {
                     const recipeData = doc.data();
                     const recipeIngredients = recipeData.ingredient.toLowerCase();
+    
                     let matchCount = 0;
-
+    
                     ingredients.forEach(ing => {
                         if (recipeIngredients.includes(ing)) {
                             matchCount++;
                         }
                     });
-
+    
                     if (matchCount > 0) {
                         const { title, thumb, times, difficulty } = recipeData;
                         recipes.push({
@@ -39,33 +42,33 @@ async function routeHandler(server) {
                             thumb,
                             times,
                             difficulty,
-                            matchCount
+                            matches: matchCount
                         });
                     }
                 });
-
-                recipes.sort((a, b) => b.matchCount - a.matchCount);
-
+    
+                recipes.sort((a, b) => b.matches - a.matches);
+    
                 if (recipes.length === 0) {
                     return h.response({ error: true, message: 'No recipe found with the ingredients' }).code(404);
                 }
-
-                const responseRecipes = recipes.map(({ key, title, thumb, times, difficulty }) => ({
+    
+                const responseRecipes = recipes.map(({ key, title, thumb, times, difficulty, matches }) => ({
                     key,
                     title,
                     thumb,
                     times,
-                    difficulty
+                    difficulty,
+                    matches
                 }));
-
+    
                 return h.response({ error: false, recipes: responseRecipes }).code(200);
             } catch (error) {
                 console.error('Error getting recipes: ', error);
                 return h.response({ error: true, message: 'Internal Server Error' }).code(500);
             }
         }
-    });
-
+    });    
 
     server.route({
         method: 'POST',
