@@ -17,12 +17,12 @@ async function routeHandler(server) {
 
             const valUser = await db.collection('users').doc(uid).get();
             if (!valUser.exists) {
-                return h.response({ error: true, message: "User doesn't exist" }).code(401);
+                return h.response({ error: true, message: "User not found" }).code(401);
             }
 
             const valSave = await db.collection('saves2').where('uid', '==', uid).where('key', '==', key).get();
             if (!valSave.empty) {
-                return h.response({ error: true, message: "Recipe already saved" }).code(401);
+                return h.response({ error: true, message: title + " Recipe already saved" }).code(401);
             }
 
             const saveRecipe = db.collection('saves2').doc();
@@ -34,7 +34,7 @@ async function routeHandler(server) {
                 times,
                 difficulty
             });
-            return h.response({ error: false, message: "Recipe saved" }).code(201);
+            return h.response({ error: false, message: title + " Recipe saved" }).code(201);
         }
     });
 
@@ -49,7 +49,7 @@ async function routeHandler(server) {
             
             const valUser = await db.collection('users').doc(uid).get();
             if (!valUser.exists) {
-                return h.response({ error: true, message: "User doesn't exist" }).code(401);
+                return h.response({ error: true, message: "User not found" }).code(401);
             }
     
             
@@ -75,7 +75,7 @@ async function routeHandler(server) {
     
             const valUser = await db.collection('users').doc(uid).get();
             if (!valUser.exists) {
-                return h.response({ error: true, message: "User doesn't exist" }).code(401);
+                return h.response({ error: true, message: "User not found" }).code(401);
             }
     
             const valSave = await db.collection('saves2').where('uid', '==', uid).where('key', '==', key).get();
@@ -89,7 +89,7 @@ async function routeHandler(server) {
             });
             await batch.commit();
     
-            return h.response({ error: false, message: "Recipe unsaved" }).code(200);
+            return h.response({ error: false, message: "Recipe deleted from saved" }).code(200);
         }
     });
     server.route({
@@ -101,7 +101,7 @@ async function routeHandler(server) {
     
             const valUser = await db.collection('users').doc(uid).get();
             if (!valUser.exists) {
-                return h.response({ error: true, message: "User doesn't exist" }).code(401);
+                return h.response({ error: true, message: "User not found" }).code(401);
             }
     
             const valSave = await db.collection('saves2').where('uid', '==', uid).get();
@@ -115,7 +115,7 @@ async function routeHandler(server) {
             });
             await batch.commit();
     
-            return h.response({ error: false, message: "All saved recipes unsaved" }).code(200);
+            return h.response({ error: false, message: "All recipes deleted from saved" }).code(200);
         }
     });
 
@@ -142,7 +142,7 @@ async function routeHandler(server) {
 
             const userSnapshot = await db.collection('users').where('email', '==', email).get();
             if (!userSnapshot.empty) {
-                return h.response({ error: true, message: 'Email already in use' }).code(400);
+                return h.response({ error: true, message: 'Email already used' }).code(400);
             }
 
             const hashedPassword = await argon2.hash(password);
@@ -167,7 +167,7 @@ async function routeHandler(server) {
 
             const userSnapshot = await db.collection('users').where('email', '==', email).get();
             if (userSnapshot.empty) {
-                return h.response({ error: true, message: "Email Doesn't Exist" }).code(401);
+                return h.response({ error: true, message: "Email not found" }).code(401);
             }
 
             const userDoc = userSnapshot.docs[0];
@@ -205,15 +205,15 @@ async function routeHandler(server) {
             const db = admin.firestore();
     
             if (!email || !currentPassword || !newPassword || !confirmNewPassword) {
-                return h.response({ error: true, message: 'Email, current password, new password, and confirm new password are required' }).code(400);
+                return h.response({ error: true, message: 'Required field(s) missing' }).code(400);
             }
     
             if (newPassword.length < 8) {
-                return h.response({ error: true, message: 'New password must be at least 8 characters long' }).code(400);
+                return h.response({ error: true, message: 'Password must be at least 8 characters long' }).code(400);
             }
     
             if (newPassword !== confirmNewPassword) {
-                return h.response({ error: true, message: 'New password and confirm new password do not match' }).code(400);
+                return h.response({ error: true, message: 'Passwords do not match' }).code(400);
             }
     
             const userSnapshot = await db.collection('users').where('email', '==', email).get();
@@ -228,7 +228,7 @@ async function routeHandler(server) {
     
             const isPasswordValid = await argon2.verify(user.password, currentPassword);
             if (!isPasswordValid) {
-                return h.response({ error: true, message: 'Invalid current password' }).code(401);
+                return h.response({ error: true, message: 'Invalid password' }).code(401);
             }
     
             const hashedNewPassword = await argon2.hash(newPassword);
