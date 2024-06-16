@@ -6,11 +6,66 @@ const admin = require('firebase-admin');
 
 async function routeHandler(server) {
     const db = admin.firestore();
+    const getRecipes = async (page, limit, ingredients) => {
+        const db = admin.firestore();
+        let query = db.collection('recipes').orderBy('title').limit(limit);
+    
+        // If page is greater than 1, we need to find the last document of the previous page
+        if (page > 1) {
+            const skip = (page - 1) * limit;
+            let lastVisible = null;
+    
+            for (let i = 1; i < page; i++) {
+                const snapshot = await query.get();
+                lastVisible = snapshot.docs[snapshot.docs.length - 1];
+    
+                query = db.collection('recipes')
+                    .orderBy('title')
+                    .startAfter(lastVisible)
+                    .limit(limit);
+            }
+        }
+    
+        const querySnapshot = await query.get();
+    
+        let recipes = [];
+        querySnapshot.forEach(doc => {
+            const recipeData = doc.data();
+            const recipeIngredients = recipeData.ingredient.toLowerCase();
+    
+            let matchCount = 0;
+            ingredients.forEach(ing => {
+                if (recipeIngredients.includes(ing)) {
+                    matchCount++;
+                }
+            });
+    
+            if (matchCount > 0) {
+                const { title, thumb, times, difficulty } = recipeData;
+                recipes.push({
+                    key: doc.id,
+                    title,
+                    thumb,
+                    times,
+                    difficulty,
+                    matches: matchCount
+                });
+            }
+        });
+    
+        recipes.sort((a, b) => b.matches - a.matches);
+    
+        return recipes;
+    };
+    
     server.route({
         method: 'GET',
         path: '/api/recipe/ingredient',
         handler: async (request, h) => {
             const query = request.query.s;
+            const page = parseInt(request.query.page, 10) || 1;
+            const limit = parseInt(request.query.limit, 10) || 20;
+    
             if (!query) {
                 return h.response({ error: true, message: 'Query parameter s is required' }).code(400);
             }
@@ -19,35 +74,7 @@ async function routeHandler(server) {
             console.log('Search ingredients:', ingredients);
     
             try {
-                const recipesSnapshot = await db.collection('recipes').get();
-                let recipes = [];
-    
-                recipesSnapshot.forEach(doc => {
-                    const recipeData = doc.data();
-                    const recipeIngredients = recipeData.ingredient.toLowerCase();
-    
-                    let matchCount = 0;
-    
-                    ingredients.forEach(ing => {
-                        if (recipeIngredients.includes(ing)) {
-                            matchCount++;
-                        }
-                    });
-    
-                    if (matchCount > 0) {
-                        const { title, thumb, times, difficulty } = recipeData;
-                        recipes.push({
-                            key: doc.id,
-                            title,
-                            thumb,
-                            times,
-                            difficulty,
-                            matches: matchCount
-                        });
-                    }
-                });
-    
-                recipes.sort((a, b) => b.matches - a.matches);
+                const recipes = await getRecipes(page, limit, ingredients);
     
                 if (recipes.length === 0) {
                     return h.response({ error: true, message: 'No recipe found with the ingredients' }).code(404);
@@ -68,7 +95,8 @@ async function routeHandler(server) {
                 return h.response({ error: true, message: 'Internal Server Error' }).code(500);
             }
         }
-    });    
+    });
+    
 
     server.route({
         method: 'POST',
