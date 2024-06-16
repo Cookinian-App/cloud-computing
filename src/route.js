@@ -6,6 +6,65 @@ const admin = require('firebase-admin');
 
 async function routeHandler(server) {
     const db = admin.firestore();
+    server.route({
+        method: 'GET',
+        path: '/api/recipe/ingredient',
+        handler: async (request, h) => {
+            const query = request.query.s;
+            if (!query) {
+                return h.response({ error: true, message: 'Query parameter s is required' }).code(400);
+            }
+
+            const ingredients = query.split(',').map(ing => ing.trim().toLowerCase());
+            try {
+                const recipesSnapshot = await db.collection('recipe').get();
+                let recipes = [];
+
+                recipesSnapshot.forEach(doc => {
+                    const recipeData = doc.data();
+                    const recipeIngredients = recipeData.ingredient.toLowerCase();
+                    let matchCount = 0;
+
+                    ingredients.forEach(ing => {
+                        if (recipeIngredients.includes(ing)) {
+                            matchCount++;
+                        }
+                    });
+
+                    if (matchCount > 0) {
+                        const { title, thumb, times, difficulty } = recipeData;
+                        recipes.push({
+                            key: doc.id,
+                            title,
+                            thumb,
+                            times,
+                            difficulty,
+                            matchCount
+                        });
+                    }
+                });
+
+                recipes.sort((a, b) => b.matchCount - a.matchCount);
+
+                if (recipes.length === 0) {
+                    return h.response({ error: true, message: 'No recipe found with the ingredients' }).code(404);
+                }
+
+                const responseRecipes = recipes.map(({ key, title, thumb, times, difficulty }) => ({
+                    key,
+                    title,
+                    thumb,
+                    times,
+                    difficulty
+                }));
+
+                return h.response({ error: false, recipes: responseRecipes }).code(200);
+            } catch (error) {
+                console.error('Error getting recipes: ', error);
+                return h.response({ error: true, message: 'Internal Server Error' }).code(500);
+            }
+        }
+    });
 
 
     server.route({
