@@ -6,81 +6,60 @@ const admin = require('firebase-admin');
 
 async function routeHandler(server) {
     const db = admin.firestore();
-    const getRecipes = async (page, limit, ingredients) => {
-        const db = admin.firestore();
-        let query = db.collection('recipes').orderBy('title').limit(limit);
-    
-        // If page is greater than 1, we need to find the last document of the previous page
-        if (page > 1) {
-            const skip = (page - 1) * limit;
-            let lastVisible = null;
-    
-            for (let i = 1; i < page; i++) {
-                const snapshot = await query.get();
-                lastVisible = snapshot.docs[snapshot.docs.length - 1];
-    
-                query = db.collection('recipes')
-                    .orderBy('title')
-                    .startAfter(lastVisible)
-                    .limit(limit);
-            }
-        }
-    
-        const querySnapshot = await query.get();
-    
-        let recipes = [];
-        querySnapshot.forEach(doc => {
-            const recipeData = doc.data();
-            const recipeIngredients = recipeData.ingredient.toLowerCase();
-    
-            let matchCount = 0;
-            ingredients.forEach(ing => {
-                if (recipeIngredients.includes(ing)) {
-                    matchCount++;
-                }
-            });
-    
-            if (matchCount > 0) {
-                const { title, thumb, times, difficulty } = recipeData;
-                recipes.push({
-                    key: doc.id,
-                    title,
-                    thumb,
-                    times,
-                    difficulty,
-                    matches: matchCount
-                });
-            }
-        });
-    
-        recipes.sort((a, b) => b.matches - a.matches);
-    
-        return recipes;
-    };
-    
     server.route({
         method: 'GET',
-        path: '/api/recipe/ingredient',
+        path: '/api/recipes/{page}',
         handler: async (request, h) => {
-            const query = request.query.s;
-            const page = parseInt(request.query.page, 10) || 1;
-            const limit = parseInt(request.query.limit, 10) || 20;
+            const page = parseInt(request.params.page, 10) || 1;
+            const bahan = request.query.bahan;
     
-            if (!query) {
-                return h.response({ error: true, message: 'Query parameter s is required' }).code(400);
+            if (!bahan) {
+                return h.response({ error: true, message: 'Query parameter bahan is required' }).code(400);
             }
     
-            const ingredients = query.split(',').map(ing => ing.trim().toLowerCase());
+            const ingredients = bahan.split(',').map(ing => ing.trim().toLowerCase());
             console.log('Search ingredients:', ingredients);
     
             try {
-                const recipes = await getRecipes(page, limit, ingredients);
+                const recipesSnapshot = await db.collection('recipes').get();
+                let recipes = [];
+    
+                recipesSnapshot.forEach(doc => {
+                    const recipeData = doc.data();
+                    const recipeIngredients = recipeData.ingredient.toLowerCase();
+    
+                    let matchCount = 0;
+    
+                    ingredients.forEach(ing => {
+                        if (recipeIngredients.includes(ing)) {
+                            matchCount++;
+                        }
+                    });
+    
+                    if (matchCount > 0) {
+                        const { title, thumb, times, difficulty } = recipeData;
+                        recipes.push({
+                            key: doc.id,
+                            title,
+                            thumb,
+                            times,
+                            difficulty,
+                            matches: matchCount
+                        });
+                    }
+                });
+    
+                recipes.sort((a, b) => b.matches - a.matches);
     
                 if (recipes.length === 0) {
                     return h.response({ error: true, message: 'No recipe found with the ingredients' }).code(404);
                 }
     
-                const responseRecipes = recipes.map(({ key, title, thumb, times, difficulty, matches }) => ({
+                const startIndex = (page - 1) * 10;
+                const endIndex = page * 10;
+                const paginatedRecipes = recipes.slice(startIndex, endIndex);
+    
+                const responseRecipes = paginatedRecipes.map(({ key, title, thumb, times, difficulty, matches }) => ({
                     key,
                     title,
                     thumb,
@@ -89,13 +68,17 @@ async function routeHandler(server) {
                     matches
                 }));
     
-                return h.response({ error: false, recipes: responseRecipes }).code(200);
+                return h.response({ 
+                    error: false, 
+                    recipes: responseRecipes
+                }).code(200);
             } catch (error) {
                 console.error('Error getting recipes: ', error);
                 return h.response({ error: true, message: 'Internal Server Error' }).code(500);
             }
         }
     });
+    
     
 
     server.route({
@@ -107,12 +90,12 @@ async function routeHandler(server) {
 
             const valUser = await db.collection('users').doc(uid).get();
             if (!valUser.exists) {
-                return h.response({ error: true, message: "User not found" }).code(401);
+                return h.response({ error: true, message: "Pengguna tidak ditemukan" }).code(401);
             }
 
             const valSave = await db.collection('saves2').where('uid', '==', uid).where('key', '==', key).get();
             if (!valSave.empty) {
-                return h.response({ error: true, message: title + " Recipe already saved" }).code(401);
+                return h.response({ error: true, message: "Resep sudah disimpan sebelumnya" }).code(401);
             }
 
             const saveRecipe = db.collection('saves2').doc();
@@ -124,7 +107,7 @@ async function routeHandler(server) {
                 times,
                 difficulty
             });
-            return h.response({ error: false, message: title + " Recipe saved" }).code(201);
+            return h.response({ error: false, message: "Resep berhasil disimpan" }).code(201);
         }
     });
 
@@ -139,7 +122,7 @@ async function routeHandler(server) {
             
             const valUser = await db.collection('users').doc(uid).get();
             if (!valUser.exists) {
-                return h.response({ error: true, message: "User not found" }).code(401);
+                return h.response({ error: true, message: "Pengguna tidak ditemuka" }).code(401);
             }
     
             
@@ -165,7 +148,7 @@ async function routeHandler(server) {
     
             const valUser = await db.collection('users').doc(uid).get();
             if (!valUser.exists) {
-                return h.response({ error: true, message: "User not found" }).code(401);
+                return h.response({ error: true, message: "Pengguna tidak ditemuka" }).code(401);
             }
     
             const valSave = await db.collection('saves2').where('uid', '==', uid).where('key', '==', key).get();
@@ -179,7 +162,7 @@ async function routeHandler(server) {
             });
             await batch.commit();
     
-            return h.response({ error: false, message: "Recipe deleted from saved" }).code(200);
+            return h.response({ error: false, message: "Resep berhasil dihapus dari simpanan" }).code(200);
         }
     });
     server.route({
@@ -191,7 +174,7 @@ async function routeHandler(server) {
     
             const valUser = await db.collection('users').doc(uid).get();
             if (!valUser.exists) {
-                return h.response({ error: true, message: "User not found" }).code(401);
+                return h.response({ error: true, message: "Pengguna tidak ditemukan" }).code(401);
             }
     
             const valSave = await db.collection('saves2').where('uid', '==', uid).get();
@@ -205,12 +188,27 @@ async function routeHandler(server) {
             });
             await batch.commit();
     
-            return h.response({ error: false, message: "All recipes deleted from saved" }).code(200);
+            return h.response({ error: false, message: "Semua resep yang disimpan berhasil dihapus" }).code(200);
         }
     });
 
     
 
+    
+    const translateJoiError = (error) => {
+        switch (error.type) {
+            case 'string.min':
+                return `Panjang minimal untuk ${error.context.label} adalah ${error.context.limit} karakter`;
+            case 'string.max':
+                return `Panjang maksimal untuk ${error.context.label} adalah ${error.context.limit} karakter`;
+            case 'string.email':
+                return `Format ${error.context.label} tidak valid`;
+            case 'any.required':
+                return `${error.context.label} harus diisi`;
+            default:
+                return error.message;
+        }
+    };
     
     server.route({
         method: 'POST',
@@ -218,33 +216,34 @@ async function routeHandler(server) {
         handler: async (request, h) => {
             const { name, email, password } = request.payload;
             const db = admin.firestore();
-
+    
             const schema = Joi.object({
                 name: Joi.string().min(3).max(20).required(),
                 email: Joi.string().email().required(),
                 password: Joi.string().min(8).required()
             });
-
-            const { error } = schema.validate(request.payload);
+    
+            const { error } = schema.validate(request.payload, { abortEarly: false });
             if (error) {
-                return h.response({ error: true, message: error.details[0].message }).code(400);
+                const translatedErrors = error.details.map(err => translateJoiError(err));
+                return h.response({ error: true, message: translatedErrors.join(', ') }).code(400);
             }
-
+    
             const userSnapshot = await db.collection('users').where('email', '==', email).get();
             if (!userSnapshot.empty) {
-                return h.response({ error: true, message: 'Email already used' }).code(400);
+                return h.response({ error: true, message: 'Email sudah digunakan, silakan coba lagi' }).code(400);
             }
-
+    
             const hashedPassword = await argon2.hash(password);
-
+    
             const userRef = db.collection('users').doc();
             await userRef.set({
                 name,
                 email,
                 password: hashedPassword
             });
-
-            return h.response({ error: false, message: 'User Created' }).code(201);
+    
+            return h.response({ error: false, message: 'Pengguna berhasil dibuat' }).code(201);
         }
     });
 
@@ -254,28 +253,28 @@ async function routeHandler(server) {
         path: '/login',
         handler: async (request, h) => {
             const { email, password } = request.payload;
-
+    
             const userSnapshot = await db.collection('users').where('email', '==', email).get();
             if (userSnapshot.empty) {
-                return h.response({ error: true, message: "Email not found" }).code(401);
+                return h.response({ error: true, message: "Email tidak ditemukan. Pastikan Anda telah mendaftar dengan email yang benar." }).code(401);
             }
-
+    
             const userDoc = userSnapshot.docs[0];
             const user = userDoc.data();
-
+    
             const isPasswordValid = await argon2.verify(user.password, password);
             if (!isPasswordValid) {
-                return h.response({ error: true, message: 'Invalid Password' }).code(401);
+                return h.response({ error: true, message: 'Password salah. Silakan periksa kembali password Anda.' }).code(401);
             }
-
+    
             const nameForAvatar = encodeURIComponent(user.name);
             const avatarUrl = `https://ui-avatars.com/api/?name=${nameForAvatar}`;
-
-            const token = jwt.sign({ userId: userDoc.id, name: user.name, avatarUrl }, 'your-secret-key', { expiresIn: '1h' });
-
+    
+            const token = jwt.sign({ userId: userDoc.id, name: user.name, avatarUrl }, 'kunci-rahasia-anda', { expiresIn: '1h' });
+    
             return h.response({
                 error: false,
-                message: 'success',
+                message: 'Sukses',
                 loginResult: {
                     userId: userDoc.id,
                     name: user.name,
@@ -285,6 +284,7 @@ async function routeHandler(server) {
             }).code(200);
         }
     });
+    
 
     
     server.route({
@@ -295,20 +295,20 @@ async function routeHandler(server) {
             const db = admin.firestore();
     
             if (!email || !currentPassword || !newPassword || !confirmNewPassword) {
-                return h.response({ error: true, message: 'Required field(s) missing' }).code(400);
+                return h.response({ error: true, message: 'Email, kata sandi saat ini, kata sandi baru, dan konfirmasi kata sandi baru diperlukan' }).code(400);
             }
     
             if (newPassword.length < 8) {
-                return h.response({ error: true, message: 'Password must be at least 8 characters long' }).code(400);
+                return h.response({ error: true, message: 'Kata sandi baru harus minimal 8 karakter' }).code(400);
             }
     
             if (newPassword !== confirmNewPassword) {
-                return h.response({ error: true, message: 'Passwords do not match' }).code(400);
+                return h.response({ error: true, message: 'Kata sandi baru dan konfirmasi kata sandi baru tidak cocok' }).code(400);
             }
     
             const userSnapshot = await db.collection('users').where('email', '==', email).get();
             if (userSnapshot.empty) {
-                return h.response({ error: true, message: 'User not found' }).code(404);
+                return h.response({ error: true, message: 'Pengguna tidak ditemukan' }).code(404);
             }
     
             let user;
@@ -318,7 +318,7 @@ async function routeHandler(server) {
     
             const isPasswordValid = await argon2.verify(user.password, currentPassword);
             if (!isPasswordValid) {
-                return h.response({ error: true, message: 'Invalid password' }).code(401);
+                return h.response({ error: true, message: 'Kata sandi saat ini tidak valid' }).code(401);
             }
     
             const hashedNewPassword = await argon2.hash(newPassword);
@@ -326,9 +326,10 @@ async function routeHandler(server) {
                 password: hashedNewPassword
             });
     
-            return h.response({ error: false, message: 'Password updated successfully' }).code(200);
+            return h.response({ error: false, message: 'Kata sandi berhasil diperbarui' }).code(200);
         }
     });
+    
 
     
     server.route({
@@ -352,7 +353,7 @@ async function routeHandler(server) {
                 const userSnapshot = await db.collection('users').where('email', '==', email).get();
     
                 if (userSnapshot.empty) {
-                    return h.response({ error: true, message: 'User not found' }).code(404);
+                    return h.response({ error: true, message: 'Pengguna tidak ditemukan' }).code(404);
                 }
     
                 const userDoc = userSnapshot.docs[0];
@@ -362,13 +363,14 @@ async function routeHandler(server) {
                     name: newName
                 });
     
-                return h.response({ error: false, message: 'Name updated successfully' }).code(200);
+                return h.response({ error: false, message: 'Nama berhasil diperbarui' }).code(200);
             } catch (err) {
                 console.error('Error updating name:', err);
-                return h.response({ error: true, message: 'Internal server error' }).code(500);
+                return h.response({ error: true, message: 'Kesalahan server internal' }).code(500);
             }
         }
     });
+    
 }
 
 module.exports = routeHandler;
