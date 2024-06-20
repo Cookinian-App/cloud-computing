@@ -4,14 +4,7 @@ Oauth Api and Recipes Api recipes Bahasa Indonesian 🇮🇩 were built with Nod
 ## Installation
 To install the required dependencies, run the following command:
 ```bash
-npm install @hapi/hapi@^21.3.9
-npm install @hapi/joi@^17.1.1
-npm install argon2@^0.40.3
-npm install axios@^1.7.2
-npm install firebase-admin@^12.1.1
-npm install joi@^17.13.1
-npm install jsonwebtoken@^9.0.2
-npm install nodemon@^3.1.3
+npm install
 ```
 
 ## Dependencies
